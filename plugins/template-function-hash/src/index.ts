@@ -6,6 +6,7 @@ const algorithms = ['md5', 'sha1', 'sha256', 'sha512'];
 export const plugin: PluginDefinition = {
   templateFunctions: algorithms.map(algorithm => ({
     name: `hash.${algorithm}`,
+    description: 'Hash a value to its hexidecimal representation',
     args: [
       {
         name: 'input',

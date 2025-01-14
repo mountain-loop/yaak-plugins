@@ -38,6 +38,37 @@ describe('exporter-curl', () => {
     );
   });
 
+  test('Exports POST with GraphQL data', async () => {
+    expect(
+      await pluginHookExport(ctx, {
+        url: 'https://yaak.app',
+        method: 'POST',
+        bodyType: 'graphql',
+        body: {
+          query : '{foo,bar}',
+          variables: '{"a": "aaa", "b": "bbb"}',
+        },
+      }),
+    ).toEqual(
+      [`curl -X POST 'https://yaak.app'`, `--data-raw '{"query":"{foo,bar}","variables":{"a":"aaa","b":"bbb"}}'`].join(` \\\n  `),
+    );
+  });
+
+  test('Exports POST with GraphQL data no variables', async () => {
+    expect(
+      await pluginHookExport(ctx, {
+        url: 'https://yaak.app',
+        method: 'POST',
+        bodyType: 'graphql',
+        body: {
+          query : '{foo,bar}',
+        },
+      }),
+    ).toEqual(
+      [`curl -X POST 'https://yaak.app'`, `--data-raw '{"query":"{foo,bar}"}'`].join(` \\\n  `),
+    );
+  });
+
   test('Exports PUT with multipart form', async () => {
     expect(
       await pluginHookExport(ctx, {
@@ -78,7 +109,7 @@ describe('exporter-curl', () => {
       [
         `curl -X POST 'https://yaak.app'`,
         `--header 'Content-Type: application/json'`,
-        `--data-raw $'{"foo":"bar\\'s"}'`,
+        `--data-raw '{"foo":"bar\\'s"}'`,
       ].join(` \\\n  `),
     );
   });
@@ -98,7 +129,7 @@ describe('exporter-curl', () => {
       [
         `curl -X POST 'https://yaak.app'`,
         `--header 'Content-Type: application/json'`,
-        `--data-raw $'{"foo":"bar",\n"baz":"qux"}'`,
+        `--data-raw '{"foo":"bar",\n"baz":"qux"}'`,
       ].join(` \\\n  `),
     );
   });

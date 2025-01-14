@@ -11,27 +11,29 @@ interface ExportResources {
 }
 
 const DATA_FLAGS = ['d', 'data', 'data-raw', 'data-urlencode', 'data-binary', 'data-ascii'];
-const SUPPORTED_ARGS = [
-  ['url'], // Specify the URL explicitly
-  ['user', 'u'], // Authentication
-  ['digest'], // Apply auth as digest
-  ['header', 'H'],
+const SUPPORTED_FLAGS = [
   ['cookie', 'b'],
-  ['get', 'G'], // Put the post data in the URL
   ['d', 'data'], // Add url encoded data
+  ['data-ascii'],
+  ['data-binary'],
   ['data-raw'],
   ['data-urlencode'],
-  ['data-binary'],
-  ['data-ascii'],
+  ['digest'], // Apply auth as digest
   ['form', 'F'], // Add multipart data
+  ['get', 'G'], // Put the post data in the URL
+  ['header', 'H'],
   ['request', 'X'], // Request method
+  ['url'], // Specify the URL explicitly
+  ['url-query'],
+  ['user', 'u'], // Authentication
   DATA_FLAGS,
 ].flatMap((v) => v);
-const BOOL_FLAGS = ['G', 'get', 'digest'];
 
-type Pair = string | boolean;
+const BOOLEAN_FLAGS = ['G', 'get', 'digest'];
 
-type PairsByName = Record<string, Pair[]>;
+type FlagValue = string | boolean;
+
+type FlagsByName = Record<string, FlagValue[]>;
 
 export function pluginHookImport(_ctx: Context, rawData: string) {
   if (!rawData.match(/^\s*curl /)) {
@@ -121,7 +123,7 @@ function importCommand(parseEntries: ParseEntry[], workspaceId: string) {
   // ~~~~~~~~~~~~~~~~~~~~~ //
   // Collect all the flags //
   // ~~~~~~~~~~~~~~~~~~~~~ //
-  const pairsByName: PairsByName = {};
+  const flagsByName: FlagsByName = {};
   const singletons: ParseEntry[] = [];
 
   // Start at 1 so we can skip the ^curl part
@@ -135,13 +137,13 @@ function importCommand(parseEntries: ParseEntry[], workspaceId: string) {
       const isSingleDash = parseEntry[0] === '-' && parseEntry[1] !== '-';
       let name = parseEntry.replace(/^-{1,2}/, '');
 
-      if (!SUPPORTED_ARGS.includes(name)) {
+      if (!SUPPORTED_FLAGS.includes(name)) {
         continue;
       }
 
       let value;
       const nextEntry = parseEntries[i + 1];
-      const hasValue = !BOOL_FLAGS.includes(name);
+      const hasValue = !BOOLEAN_FLAGS.includes(name);
       if (isSingleDash && name.length > 1) {
         // Handle squished arguments like -XPOST
         value = name.slice(1);
@@ -154,8 +156,8 @@ function importCommand(parseEntries: ParseEntry[], workspaceId: string) {
         value = true;
       }
 
-      pairsByName[name] = pairsByName[name] || [];
-      pairsByName[name]!.push(value);
+      flagsByName[name] = flagsByName[name] || [];
+      flagsByName[name]!.push(value);
     } else if (parseEntry) {
       singletons.push(parseEntry);
     }
@@ -165,12 +167,11 @@ function importCommand(parseEntries: ParseEntry[], workspaceId: string) {
   // Build the request //
   // ~~~~~~~~~~~~~~~~~ //
 
-  // Url & parameters
-
+  // Url and Parameters
   let urlParameters: HttpUrlParameter[];
   let url: string;
 
-  const urlArg = getPairValue(pairsByName, (singletons[0] as string) || '', ['url']);
+  const urlArg = getPairValue(flagsByName, (singletons[0] as string) || '', ['url']);
   const [baseUrl, search] = splitOnce(urlArg, '?');
   urlParameters =
     search?.split('&').map((p) => {
@@ -180,10 +181,23 @@ function importCommand(parseEntries: ParseEntry[], workspaceId: string) {
 
   url = baseUrl ?? urlArg;
 
-  // Authentication
-  const [username, password] = getPairValue(pairsByName, '', ['u', 'user']).split(/:(.*)$/);
+  // Query params
+  for (const p of flagsByName['url-query'] ?? []) {
+    if (typeof p !== 'string') {
+      continue;
+    }
+    const [name, value] = p.split('=');
+    urlParameters.push({
+      name: name ?? '',
+      value: value ?? '',
+      enabled: true,
+    });
+  }
 
-  const isDigest = getPairValue(pairsByName, false, ['digest']);
+  // Authentication
+  const [username, password] = getPairValue(flagsByName, '', ['u', 'user']).split(/:(.*)$/);
+
+  const isDigest = getPairValue(flagsByName, false, ['digest']);
   const authenticationType = username ? (isDigest ? 'digest' : 'basic') : null;
   const authentication = username
     ? {
@@ -194,8 +208,8 @@ function importCommand(parseEntries: ParseEntry[], workspaceId: string) {
 
   // Headers
   const headers = [
-    ...((pairsByName['header'] as string[] | undefined) || []),
-    ...((pairsByName['H'] as string[] | undefined) || []),
+    ...((flagsByName['header'] as string[] | undefined) || []),
+    ...((flagsByName['H'] as string[] | undefined) || []),
   ].map((header) => {
     const [name, value] = header.split(/:(.*)$/);
     // remove final colon from header name if present
@@ -215,8 +229,8 @@ function importCommand(parseEntries: ParseEntry[], workspaceId: string) {
 
   // Cookies
   const cookieHeaderValue = [
-    ...((pairsByName['cookie'] as string[] | undefined) || []),
-    ...((pairsByName['b'] as string[] | undefined) || []),
+    ...((flagsByName['cookie'] as string[] | undefined) || []),
+    ...((flagsByName['b'] as string[] | undefined) || []),
   ]
     .map((str) => {
       const name = str.split('=', 1)[0];
@@ -240,15 +254,15 @@ function importCommand(parseEntries: ParseEntry[], workspaceId: string) {
     });
   }
 
-  ///Body (Text or Blob)
-  const dataParameters = pairsToDataParameters(pairsByName);
+  // Body (Text or Blob)
+  const dataParameters = pairsToDataParameters(flagsByName);
   const contentTypeHeader = headers.find((header) => header.name.toLowerCase() === 'content-type');
   const mimeType = contentTypeHeader ? contentTypeHeader.value.split(';')[0] : null;
 
   // Body (Multipart Form Data)
   const formDataParams = [
-    ...((pairsByName['form'] as string[] | undefined) || []),
-    ...((pairsByName['F'] as string[] | undefined) || []),
+    ...((flagsByName['form'] as string[] | undefined) || []),
+    ...((flagsByName['F'] as string[] | undefined) || []),
   ].map((str) => {
     const parts = str.split('=');
     const name = parts[0] ?? '';
@@ -270,7 +284,7 @@ function importCommand(parseEntries: ParseEntry[], workspaceId: string) {
   // Body
   let body = {};
   let bodyType: string | null = null;
-  const bodyAsGET = getPairValue(pairsByName, false, ['G', 'get']);
+  const bodyAsGET = getPairValue(flagsByName, false, ['G', 'get']);
 
   if (dataParameters.length > 0 && bodyAsGET) {
     urlParameters.push(...dataParameters);
@@ -316,7 +330,7 @@ function importCommand(parseEntries: ParseEntry[], workspaceId: string) {
   }
 
   // Method
-  let method = getPairValue(pairsByName, '', ['X', 'request']).toUpperCase();
+  let method = getPairValue(flagsByName, '', ['X', 'request']).toUpperCase();
 
   if (method === '' && body) {
     method = 'text' in body || 'form' in body ? 'POST' : 'GET';
@@ -350,7 +364,7 @@ interface DataParameter {
   enabled?: boolean;
 }
 
-function pairsToDataParameters(keyedPairs: PairsByName): DataParameter[] {
+function pairsToDataParameters(keyedPairs: FlagsByName): DataParameter[] {
   let dataParameters: DataParameter[] = [];
 
   for (const flagName of DATA_FLAGS) {
@@ -386,7 +400,7 @@ function pairsToDataParameters(keyedPairs: PairsByName): DataParameter[] {
 }
 
 const getPairValue = <T extends string | boolean>(
-  pairsByName: PairsByName,
+  pairsByName: FlagsByName,
   defaultValue: T,
   names: string[],
 ) => {

@@ -47,14 +47,23 @@ export function pluginHookImport(
     model: 'workspace',
     id: generateId('workspace'),
     name: info.name || 'Postman Import',
-    description: info.description?.content ?? info.description ?? '',
+    description: info.description?.content ?? info.description,
+  };
+  exportResources.workspaces.push(workspace);
+
+  // Create the base environment
+  const environment: ExportResources['environments'][0] = {
+    model: 'environment',
+    id: generateId('environment'),
+    name: 'Global Variables',
+    workspaceId: workspace.id,
     variables:
       root.variable?.map((v: any) => ({
         name: v.key,
         value: v.value,
       })) ?? [],
   };
-  exportResources.workspaces.push(workspace);
+  exportResources.environments.push(environment);
 
   const importItem = (v: Record<string, any>, folderId: string | null = null) => {
     if (typeof v.name === 'string' && Array.isArray(v.item)) {
@@ -100,6 +109,7 @@ export function pluginHookImport(
         workspaceId: workspace.id,
         folderId,
         name: v.name,
+        description: v.description || undefined,
         method: r.method || 'GET',
         url,
         urlParameters,
@@ -119,7 +129,9 @@ export function pluginHookImport(
     importItem(item);
   }
 
-  return { resources: convertTemplateSyntax(exportResources) };
+  const resources = deleteUndefinedAttrs(convertTemplateSyntax(exportResources));
+
+  return { resources };
 }
 
 function convertUrl(url: string | any): Pick<HttpRequest, 'url' | 'urlParameters'> {
@@ -320,6 +332,20 @@ function convertTemplateSyntax<T>(obj: T): T {
   } else if (typeof obj === 'object' && obj != null) {
     return Object.fromEntries(
       Object.entries(obj).map(([k, v]) => [k, convertTemplateSyntax(v)]),
+    ) as T;
+  } else {
+    return obj;
+  }
+}
+
+function deleteUndefinedAttrs<T>(obj: T): T {
+  if (Array.isArray(obj) && obj != null) {
+    return obj.map(deleteUndefinedAttrs) as T;
+  } else if (typeof obj === 'object' && obj != null) {
+    return Object.fromEntries(
+      Object.entries(obj)
+        .filter(([, v]) => v !== undefined)
+        .map(([k, v]) => [k, deleteUndefinedAttrs(v)]),
     ) as T;
   } else {
     return obj;

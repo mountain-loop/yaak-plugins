@@ -310,6 +310,23 @@ describe('importer-curl', () => {
     });
   });
 
+  test('Imports query params', () => {
+    expect(pluginHookImport(ctx, 'curl "https://yaak.app" --url-query foo=bar --url-query baz=qux')).toEqual({
+      resources: {
+        workspaces: [baseWorkspace()],
+        httpRequests: [
+          baseRequest({
+            url: 'https://yaak.app',
+            urlParameters: [
+              { name: 'foo', value: 'bar', enabled: true },
+              { name: 'baz', value: 'qux', enabled: true },
+            ],
+          }),
+        ],
+      },
+    });
+  });
+
   test('Imports query params from the URL', () => {
     expect(pluginHookImport(ctx, 'curl "https://yaak.app?foo=bar&baz=a%20a"')).toEqual({
       resources: {

@@ -4,12 +4,18 @@
       {
         "model": "workspace",
         "id": "GENERATE_ID::WORKSPACE_0",
-        "name": "New Collection",
-        "description": "",
-        "variables": []
+        "name": "New Collection"
       }
     ],
-    "environments": [],
+    "environments": [
+      {
+        "id": "GENERATE_ID::ENVIRONMENT_0",
+        "model": "environment",
+        "name": "Global Variables",
+        "variables": [],
+        "workspaceId": "GENERATE_ID::WORKSPACE_0"
+      }
+    ],
     "httpRequests": [
       {
         "model": "http_request",

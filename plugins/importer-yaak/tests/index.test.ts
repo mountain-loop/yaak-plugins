@@ -30,4 +30,46 @@ describe('importer-yaak', () => {
       }),
     );
   });
+  test('converts schema 2 to 3', () => {
+    const imported = pluginHookImport(
+      ctx,
+      JSON.stringify({
+        yaakSchema: 2,
+        resources: {
+          environments: [{
+            id: 'e_1',
+            workspaceId: 'w_1',
+            name: 'Production',
+            variables: [{ name: 'E1', value: 'E1!' }],
+          }],
+          workspaces: [{
+            id: 'w_1',
+            variables: [{ name: 'W1', value: 'W1!' }],
+          }],
+        },
+      }),
+    );
+
+    expect(imported).toEqual(
+      expect.objectContaining({
+        resources: {
+          workspaces: [{
+            id: 'w_1',
+          }],
+          environments: [{
+            id: 'e_1',
+            environmentId: 'GENERATE_ID::base_env_w_1',
+            workspaceId: 'w_1',
+            name: 'Production',
+            variables: [{ name: 'E1', value: 'E1!' }],
+          }, {
+            id: 'GENERATE_ID::base_env_w_1',
+            workspaceId: 'w_1',
+            name: 'Global Variables',
+            variables: [{ name: 'W1', value: 'W1!' }],
+          }],
+        },
+      }),
+    );
+  });
 });

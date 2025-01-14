@@ -33,6 +33,7 @@ export const plugin: PluginDefinition = {
   templateFunctions: [
     {
       name: 'response.header',
+      description: 'Read the value of a response header, by name',
       args: [
         requestArg,
         {
@@ -61,6 +62,7 @@ export const plugin: PluginDefinition = {
     },
     {
       name: 'response.body.path',
+      description: 'Access a field of the response body using JsonPath or XPath',
       aliases: ['response'],
       args: [
         requestArg,
@@ -106,6 +108,38 @@ export const plugin: PluginDefinition = {
         }
 
         return null; // Bail out
+      },
+    },
+    {
+      name: 'response.body.raw',
+      description: 'Access the entire response body, as text',
+      aliases: ['response'],
+      args: [
+        requestArg,
+        behaviorArg,
+      ],
+      async onRender(ctx: Context, args: CallTemplateFunctionArgs): Promise<string | null> {
+        if (!args.values.request) return null;
+
+        const response = await getResponse(ctx, {
+          requestId: args.values.request,
+          purpose: args.purpose,
+          behavior: args.values.behavior ?? null,
+        });
+        if (response == null) return null;
+
+        if (response.bodyPath == null) {
+          return null;
+        }
+
+        let body;
+        try {
+          body = readFileSync(response.bodyPath, 'utf-8');
+        } catch (_) {
+          return null;
+        }
+
+        return body;
       },
     },
   ],
