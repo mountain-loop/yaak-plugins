@@ -22,12 +22,11 @@ const behaviorArg: FormInput = {
   ],
 };
 
-const requestArg: FormInput =
-  {
-    type: 'http_request',
-    name: 'request',
-    label: 'Request',
-  };
+const requestArg: FormInput = {
+  type: 'http_request',
+  name: 'request',
+  label: 'Request',
+};
 
 export const plugin: PluginDefinition = {
   templateFunctions: [
