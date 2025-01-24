@@ -24,7 +24,7 @@ export const plugin: PluginDefinition = {
       name: 'jwt',
       label: 'JWT Bearer',
       shortLabel: 'JWT',
-      config: [
+      args: [
         {
           type: 'select',
           name: 'algorithm',
@@ -34,11 +34,12 @@ export const plugin: PluginDefinition = {
           options: algorithms.map(value => ({ name: value === 'none' ? 'None' : value, value })),
         },
         {
-          type: 'editor',
+          type: 'text',
           name: 'secret',
           label: 'Secret or Private Key',
+          password: true,
           optional: true,
-          hideGutter: true,
+          multiLine: true,
         },
         {
           type: 'checkbox',
@@ -54,8 +55,8 @@ export const plugin: PluginDefinition = {
           placeholder: '{ }',
         },
       ],
-      async onApply(_ctx, args) {
-        const { algorithm, secret: _secret, secretBase64, payload } = args.config;
+      async onApply(_ctx, { values }) {
+        const { algorithm, secret: _secret, secretBase64, payload } = values;
         const secret = secretBase64 ? Buffer.from(`${_secret}`, 'base64') : `${_secret}`;
         const token = jwt.sign(`${payload}`, secret, { algorithm: algorithm as any });
         const value = `Bearer ${token}`;

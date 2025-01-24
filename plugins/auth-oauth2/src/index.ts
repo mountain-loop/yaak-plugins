@@ -1,28 +1,36 @@
-import { Context, GetHttpAuthenticationConfigRequest, PluginDefinition } from '@yaakapp/api';
-import { readFileSync } from 'node:fs';
+import { Context, GetHttpAuthenticationConfigRequest, JsonPrimitive, PluginDefinition } from '@yaakapp/api';
+import { DEFAULT_PKCE_METHOD, getAuthorizationCode, PKCE_PLAIN, PKCE_SHA256 } from './grants/authorizationCode';
+import { getClientCredentials } from './grants/clientCredentials';
+import { getImplicit } from './grants/implicit';
+import { getResourceOwner } from './grants/resourceOwner';
+import { AccessToken, getToken } from './store';
 
-type GrantType = 'authorization_code' | 'implicit' | 'resource_owner' | 'client_credential';
+type GrantType = 'authorization_code' | 'implicit' | 'password' | 'client_credentials';
 
 const grantTypes: { name: string; value: GrantType }[] = [
   { name: 'Authorization Code', value: 'authorization_code' },
   { name: 'Implicit', value: 'implicit' },
-  { name: 'Resource Owner Password Credential', value: 'resource_owner' },
-  { name: 'Client Credentials', value: 'client_credential' },
+  { name: 'Resource Owner Password Credential', value: 'password' },
+  { name: 'Client Credentials', value: 'client_credentials' },
 ];
 
 const defaultGrantType = grantTypes[0]!.value;
 
-function onlyTypes(config: GetHttpAuthenticationConfigRequest['config'], ...grantTypes: GrantType[]) {
-  return !grantTypes.find(t => t === String(config.grantType ?? defaultGrantType));
+function hiddenIfNot(grantTypes: GrantType[], ...other: ((values: GetHttpAuthenticationConfigRequest['values']) => boolean)[]) {
+  return (_ctx: Context, { values }: GetHttpAuthenticationConfigRequest) => {
+    const hasGrantType = grantTypes.find(t => t === String(values.grantType ?? defaultGrantType));
+    const hasOtherBools = other.every(t => t(values));
+    const show = hasGrantType && hasOtherBools;
+    return { hidden: !show };
+  };
 }
 
 const authorizationUrls = [
-  'https://MY_SHOP.myshopify.com/admin/oauth/access_token',
+  'https://github.com/login/oauth/authorize',
   'https://account.box.com/api/oauth2/authorize',
   'https://accounts.google.com/o/oauth2/v2/auth',
   'https://api.imgur.com/oauth2/authorize',
   'https://bitly.com/oauth/authorize',
-  'https://github.com/login/oauth/authorize',
   'https://gitlab.example.com/oauth/authorize',
   'https://medium.com/m/oauth/authorize',
   'https://public-api.wordpress.com/oauth2/authorize',
@@ -30,184 +38,237 @@ const authorizationUrls = [
   'https://todoist.com/oauth/authorize',
   'https://www.dropbox.com/oauth2/authorize',
   'https://www.linkedin.com/oauth/v2/authorization',
+  'https://MY_SHOP.myshopify.com/admin/oauth/access_token',
 ];
 
-const accessTokenUrls =[
-  'https://MY_SHOP.myshopify.com/admin/oauth/authorize',
+const accessTokenUrls = [
+  'https://github.com/login/oauth/access_token',
   'https://api-ssl.bitly.com/oauth/access_token',
   'https://api.box.com/oauth2/token',
   'https://api.dropboxapi.com/oauth2/token',
   'https://api.imgur.com/oauth2/token',
   'https://api.medium.com/v1/tokens',
-  'https://github.com/login/oauth/access_token',
   'https://gitlab.example.com/oauth/token',
   'https://public-api.wordpress.com/oauth2/token',
   'https://slack.com/api/oauth.access',
   'https://todoist.com/oauth/access_token',
   'https://www.googleapis.com/oauth2/v4/token',
   'https://www.linkedin.com/oauth/v2/accessToken',
+  'https://MY_SHOP.myshopify.com/admin/oauth/authorize',
 ];
 
 export const plugin: PluginDefinition = {
   authentication: {
     name: 'oauth2',
-    label: 'OAuth 2',
-    shortLabel: 'OAuth 2.0',
-    config: (_ctx, { config }) => {
-      return [
-        {
-          type: 'select',
-          name: 'grantType',
-          label: 'Grant Type',
-          hideLabel: true,
-          defaultValue: defaultGrantType,
-          options: grantTypes,
-        },
-        // Always-present fields
-        { type: 'text', name: 'clientId', label: 'Client ID', optional: true },
+    label: 'OAuth 2.0',
+    shortLabel: 'OAuth 2',
+    args: [
+      {
+        type: 'select',
+        name: 'grantType',
+        label: 'Grant Type',
+        hideLabel: true,
+        defaultValue: defaultGrantType,
+        options: grantTypes,
+      },
+      // Always-present fields
+      { type: 'text', name: 'clientId', label: 'Client ID' },
 
-        {
-          type: 'text',
-          name: 'clientSecret',
-          label: 'Client Secret',
-          optional: true,
-          hidden: onlyTypes(config, 'authorization_code', 'resource_owner', 'client_credential'),
+      {
+        type: 'text',
+        name: 'clientSecret',
+        label: 'Client Secret',
+        password: true,
+        dynamic: hiddenIfNot(['authorization_code', 'password', 'client_credentials']),
+      },
+      {
+        type: 'text',
+        name: 'authorizationUrl',
+        label: 'Authorization URL',
+        dynamic: hiddenIfNot(['authorization_code', 'implicit']),
+        placeholder: authorizationUrls[0],
+        completionOptions: authorizationUrls.map(url => ({ label: url, value: url })),
+      },
+      {
+        type: 'text',
+        name: 'accessTokenUrl',
+        label: 'Access Token URL',
+        placeholder: accessTokenUrls[0],
+        dynamic: hiddenIfNot(['authorization_code', 'password', 'client_credentials']),
+        completionOptions: accessTokenUrls.map(url => ({ label: url, value: url })),
+      },
+      {
+        type: 'text',
+        name: 'redirectUri',
+        label: 'Redirect URI',
+        optional: true,
+        dynamic: hiddenIfNot(['authorization_code', 'implicit']),
+      },
+      {
+        type: 'text',
+        name: 'state',
+        label: 'State',
+        optional: true,
+        dynamic: hiddenIfNot(['authorization_code', 'implicit']),
+      },
+      {
+        type: 'checkbox',
+        name: 'usePkce',
+        label: 'Use PKCE',
+        dynamic: hiddenIfNot(['authorization_code']),
+      },
+      {
+        type: 'select',
+        name: 'pkceChallengeMethod',
+        label: 'Code Challenge Method',
+        options: [{ name: 'SHA-256', value: PKCE_SHA256 }, { name: 'Plain', value: PKCE_PLAIN }],
+        defaultValue: DEFAULT_PKCE_METHOD,
+        dynamic: hiddenIfNot(['authorization_code'], ({ usePkce }) => !!usePkce),
+      },
+      {
+        type: 'text',
+        name: 'pkceCodeVerifier',
+        label: 'Code Verifier',
+        placeholder: 'Automatically generated if not provided',
+        optional: true,
+        dynamic: hiddenIfNot(['authorization_code'], ({ usePkce }) => !!usePkce),
+      },
+      {
+        type: 'text',
+        name: 'username',
+        label: 'Username',
+        optional: true,
+        dynamic: hiddenIfNot(['password']),
+      },
+      {
+        type: 'text',
+        name: 'password',
+        label: 'Password',
+        password: true,
+        optional: true,
+        dynamic: hiddenIfNot(['password']),
+      },
+      {
+        type: 'select',
+        name: 'responseType',
+        label: 'Response Type',
+        defaultValue: 'token',
+        options: [
+          { name: 'Access Token', value: 'token' },
+          { name: 'ID Token', value: 'id_token' },
+          { name: 'ID and Access Token', value: 'id_token token' },
+        ],
+        dynamic: hiddenIfNot(['implicit']),
+      },
+      {
+        type: 'accordion',
+        label: 'Advanced',
+        inputs: [
+          { type: 'text', name: 'scope', label: 'Scope', optional: true },
+          { type: 'text', name: 'headerPrefix', label: 'Header Prefix', optional: true, defaultValue: 'Bearer' },
+          {
+            type: 'select', name: 'credentials', label: 'Send Credentials', defaultValue: 'body', options: [
+              { name: 'In Request Body', value: 'body' },
+              { name: 'As Basic Authentication', value: 'basic' },
+            ],
+          },
+        ],
+      },
+      {
+        type: 'banner',
+        content: { type: 'markdown', content: 'Hello' },
+        async dynamic(ctx: Context, args) {
+          const token = await getToken(ctx, args.requestId);
+          if (token == null) {
+            return { hidden: true };
+          }
+          return ({
+            content: {
+              type: 'markdown',
+              content: token ? 'token: `' + token.response.access_token + '`' : 'No token',
+            },
+          });
         },
-        {
-          type: 'text',
-          name: 'authorizationUrl',
-          label: 'Authorization URL',
-          optional: true,
-          hidden: onlyTypes(config, 'authorization_code', 'implicit'),
-          completionOptions: authorizationUrls.map(url => ({ label: url, value: url })),
-        },
-        {
-          type: 'text',
-          name: 'accessTokenUrl',
-          label: 'Access Token URL',
-          optional: true,
-          hidden: onlyTypes(config, 'authorization_code', 'resource_owner', 'client_credential'),
-          completionOptions: accessTokenUrls.map(url => ({ label: url, value: url })),
-        },
-        {
-          type: 'text',
-          name: 'username',
-          label: 'Username',
-          optional: true,
-          hidden: onlyTypes(config, 'resource_owner'),
-        },
-        {
-          type: 'text',
-          name: 'password',
-          label: 'Password',
-          password: true,
-          optional: true,
-          hidden: onlyTypes(config, 'resource_owner'),
-        },
-        {
-          type: 'text',
-          name: 'redirectUri',
-          label: 'Redirect URI',
-          optional: true,
-          hidden: onlyTypes(config, 'authorization_code', 'implicit'),
-        },
-        {
-          type: 'text',
-          name: 'scope',
-          label: 'Scope',
-          optional: true,
-        },
-        {
-          type: 'text',
-          name: 'state',
-          label: 'State',
-          optional: true,
-        },
-      ];
-    },
-    async onApply(ctx, args) {
-      const token = await getAuthorizationCode(ctx, {
-        accessTokenUrl: String(args.config.accessTokenUrl),
-        authorizationUrl: String(args.config.authorizationUrl),
-        clientId: String(args.config.clientId),
-        clientSecret: String(args.config.clientSecret),
-        redirectUri: String(args.config.redirectUri),
-        scope: String(args.config.scope),
-        state: String(args.config.state),
-      });
-      return { setHeaders: [{ name: 'Authorization', value: `Bearer ${token}` }] };
+      },
+    ],
+    async onApply(ctx, { values, requestId }) {
+      const headerPrefix = optionalString(values, 'headerPrefix') ?? '';
+      const grantType = requiredString(values, 'grantType') as GrantType;
+      const credentialsInBody = values.credentials === 'body';
+
+      let token: AccessToken;
+
+      console.log('Performing OAuth', values);
+      if (grantType === 'authorization_code') {
+        const authorizationUrl = requiredString(values, 'authorizationUrl');
+        const accessTokenUrl = requiredString(values, 'accessTokenUrl');
+        token = await getAuthorizationCode(ctx, requestId, {
+          accessTokenUrl: accessTokenUrl.match(/^https?:\/\//) ? accessTokenUrl : `https://${accessTokenUrl}`,
+          authorizationUrl: authorizationUrl.match(/^https?:\/\//) ? authorizationUrl : `https://${authorizationUrl}`,
+          clientId: requiredString(values, 'clientId'),
+          clientSecret: requiredString(values, 'clientSecret'),
+          redirectUri: optionalString(values, 'redirectUri'),
+          scope: optionalString(values, 'scope'),
+          state: optionalString(values, 'state'),
+          credentialsInBody,
+          pkce: values.usePkce ? {
+            challengeMethod: requiredString(values, 'pkceChallengeMethod'),
+            codeVerifier: optionalString(values, 'pkceCodeVerifier'),
+          } : null,
+        });
+      } else if (grantType === 'implicit') {
+        const authorizationUrl = requiredString(values, 'authorizationUrl');
+        token = await getImplicit(ctx, requestId, {
+          authorizationUrl: authorizationUrl.match(/^https?:\/\//) ? authorizationUrl : `https://${authorizationUrl}`,
+          clientId: requiredString(values, 'clientId'),
+          redirectUri: optionalString(values, 'redirectUri'),
+          responseType: requiredString(values, 'responseType'),
+          scope: optionalString(values, 'scope'),
+          state: optionalString(values, 'state'),
+        });
+      } else if (grantType === 'client_credentials') {
+        const accessTokenUrl = requiredString(values, 'accessTokenUrl');
+        token = await getClientCredentials(ctx, requestId, {
+          accessTokenUrl: accessTokenUrl.match(/^https?:\/\//) ? accessTokenUrl : `https://${accessTokenUrl}`,
+          clientId: requiredString(values, 'clientId'),
+          clientSecret: requiredString(values, 'clientSecret'),
+          scope: optionalString(values, 'scope'),
+          credentialsInBody,
+        });
+      } else if (grantType === 'password') {
+        const accessTokenUrl = requiredString(values, 'accessTokenUrl');
+        token = await getResourceOwner(ctx, requestId, {
+          accessTokenUrl: accessTokenUrl.match(/^https?:\/\//) ? accessTokenUrl : `https://${accessTokenUrl}`,
+          clientId: requiredString(values, 'clientId'),
+          clientSecret: requiredString(values, 'clientSecret'),
+          username: requiredString(values, 'username'),
+          password: requiredString(values, 'password'),
+          scope: optionalString(values, 'scope'),
+          credentialsInBody,
+        });
+      } else {
+        throw new Error('Invalid grant type ' + grantType);
+      }
+
+      const headerValue = `${headerPrefix} ${token.response.access_token}`.trim();
+      return {
+        setHeaders: [{
+          name: 'Authorization',
+          value: headerValue,
+        }],
+      };
     },
   },
 };
 
-function getAuthorizationCode(ctx: Context, {
-  accessTokenUrl,
-  clientId,
-  clientSecret,
-  redirectUri,
-  scope,
-  state,
-  ...config
-}: {
-  accessTokenUrl: string;
-  authorizationUrl: string;
-  clientId: string;
-  clientSecret: string;
-  redirectUri: string;
-  scope: string;
-  state: string;
-}) {
-  const authorizationUrl = new URL(`${config.authorizationUrl ?? ''}`);
-  authorizationUrl.searchParams.set('client_id', clientId);
-  authorizationUrl.searchParams.set('redirect_uri', redirectUri);
-  authorizationUrl.searchParams.set('response_type', 'code');
-  if (scope) authorizationUrl.searchParams.set('scope', scope);
-  if (state) authorizationUrl.searchParams.set('state', state);
+function optionalString(values: Record<string, JsonPrimitive | undefined>, name: string): string | null {
+  const arg = values[name];
+  if (arg == null || arg == '') return null;
+  return `${arg}`;
+}
 
-  const authorizationUrlStr = authorizationUrl.toString();
-  console.log('Opening authorization url', authorizationUrlStr);
-
-  return new Promise(async (resolve, reject) => {
-    let { close } = await ctx.window.openUrl({
-      url: authorizationUrlStr,
-      label: 'oauth-authorization-url',
-      async onNavigate({ url: urlStr }) {
-        const url = new URL(urlStr);
-        const code = url.searchParams.get('code');
-        if (!code) {
-          // Could be one of many redirects in a chain, so skip it
-          return;
-        }
-
-        // Close the window here, because we don't need it anymore!
-        close();
-
-        const resp = await ctx.httpRequest.send({
-          httpRequest: {
-            method: 'POST',
-            url: accessTokenUrl,
-            urlParameters: [
-              { name: 'client_id', value: clientId },
-              { name: 'client_secret', value: clientSecret },
-              { name: 'code', value: code },
-              { name: 'redirect_uri', value: redirectUri },
-            ],
-            headers: [
-              { name: 'Accept', value: 'application/json' },
-              { name: 'Content-Type', value: 'application/x-www-form-urlencoded' },
-            ],
-          },
-        });
-
-        const body = readFileSync(resp.bodyPath ?? '', 'utf8');
-        if (resp.status < 200 || resp.status >= 300) {
-          reject(new Error('Failed to fetch access token with status=' + resp.status));
-        }
-
-        const bodyObj = JSON.parse(body);
-        const accessToken = bodyObj['access_token'];
-        resolve(accessToken);
-      },
-    });
-  });
+function requiredString(values: Record<string, JsonPrimitive | undefined>, name: string): string {
+  const arg = optionalString(values, name);
+  if (!arg) throw new Error(`Missing required argument ${name}`);
+  return arg;
 }

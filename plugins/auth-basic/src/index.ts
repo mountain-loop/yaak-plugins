@@ -5,7 +5,7 @@ export const plugin: PluginDefinition = {
     name: 'basic',
     label: 'Basic Auth',
     shortLabel: 'Basic',
-    config: [{
+    args: [{
       type: 'text',
       name: 'username',
       label: 'Username',
@@ -17,8 +17,8 @@ export const plugin: PluginDefinition = {
       optional: true,
       password: true,
     }],
-    async onApply(_ctx, args) {
-      const { username, password } = args.config;
+    async onApply(_ctx, { values }) {
+      const { username, password } = values;
       const value = 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64');
       return { setHeaders: [{ name: 'Authorization', value }] };
     },
