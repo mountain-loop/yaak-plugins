@@ -31,7 +31,7 @@ export const plugin: PluginDefinition = {
           label: 'Algorithm',
           hideLabel: true,
           defaultValue: defaultAlgorithm,
-          options: algorithms.map(value => ({ name: value === 'none' ? 'None' : value, value })),
+          options: algorithms.map(value => ({ label: value === 'none' ? 'None' : value, value })),
         },
         {
           type: 'text',

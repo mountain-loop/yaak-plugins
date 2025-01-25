@@ -4,14 +4,14 @@ const NEWLINE = '\\\n ';
 
 export const plugin: PluginDefinition = {
   httpRequestActions: [{
-    key: 'export-curl',
+    name: 'export-curl',
     label: 'Copy as Curl',
     icon: 'copy',
     async onSelect(ctx, args) {
       const rendered_request = await ctx.httpRequest.render({ httpRequest: args.httpRequest, purpose: 'preview' });
       const data = await convertToCurl(rendered_request);
-      ctx.clipboard.copyText(data);
-      ctx.toast.show({ message: 'Curl copied to clipboard', icon: 'copy' });
+      await ctx.clipboard.copyText(data);
+      await ctx.toast.show({ message: 'Curl copied to clipboard', icon: 'copy' });
     },
   }],
 };

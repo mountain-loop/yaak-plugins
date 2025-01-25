@@ -1,4 +1,10 @@
-import { Context, GetHttpAuthenticationConfigRequest, JsonPrimitive, PluginDefinition } from '@yaakapp/api';
+import {
+  Context,
+  FormInputSelectOption,
+  GetHttpAuthenticationConfigRequest,
+  JsonPrimitive,
+  PluginDefinition,
+} from '@yaakapp/api';
 import { DEFAULT_PKCE_METHOD, getAuthorizationCode, PKCE_PLAIN, PKCE_SHA256 } from './grants/authorizationCode';
 import { getClientCredentials } from './grants/clientCredentials';
 import { getImplicit } from './grants/implicit';
@@ -7,11 +13,11 @@ import { AccessToken, getToken } from './store';
 
 type GrantType = 'authorization_code' | 'implicit' | 'password' | 'client_credentials';
 
-const grantTypes: { name: string; value: GrantType }[] = [
-  { name: 'Authorization Code', value: 'authorization_code' },
-  { name: 'Implicit', value: 'implicit' },
-  { name: 'Resource Owner Password Credential', value: 'password' },
-  { name: 'Client Credentials', value: 'client_credentials' },
+const grantTypes: FormInputSelectOption[] = [
+  { label: 'Authorization Code', value: 'authorization_code' },
+  { label: 'Implicit', value: 'implicit' },
+  { label: 'Resource Owner Password Credential', value: 'password' },
+  { label: 'Client Credentials', value: 'client_credentials' },
 ];
 
 const defaultGrantType = grantTypes[0]!.value;
@@ -121,7 +127,7 @@ export const plugin: PluginDefinition = {
         type: 'select',
         name: 'pkceChallengeMethod',
         label: 'Code Challenge Method',
-        options: [{ name: 'SHA-256', value: PKCE_SHA256 }, { name: 'Plain', value: PKCE_PLAIN }],
+        options: [{ label: 'SHA-256', value: PKCE_SHA256 }, { label: 'Plain', value: PKCE_PLAIN }],
         defaultValue: DEFAULT_PKCE_METHOD,
         dynamic: hiddenIfNot(['authorization_code'], ({ usePkce }) => !!usePkce),
       },
@@ -154,9 +160,9 @@ export const plugin: PluginDefinition = {
         label: 'Response Type',
         defaultValue: 'token',
         options: [
-          { name: 'Access Token', value: 'token' },
-          { name: 'ID Token', value: 'id_token' },
-          { name: 'ID and Access Token', value: 'id_token token' },
+          { label: 'Access Token', value: 'token' },
+          { label: 'ID Token', value: 'id_token' },
+          { label: 'ID and Access Token', value: 'id_token token' },
         ],
         dynamic: hiddenIfNot(['implicit']),
       },
@@ -168,26 +174,29 @@ export const plugin: PluginDefinition = {
           { type: 'text', name: 'headerPrefix', label: 'Header Prefix', optional: true, defaultValue: 'Bearer' },
           {
             type: 'select', name: 'credentials', label: 'Send Credentials', defaultValue: 'body', options: [
-              { name: 'In Request Body', value: 'body' },
-              { name: 'As Basic Authentication', value: 'basic' },
+              { label: 'In Request Body', value: 'body' },
+              { label: 'As Basic Authentication', value: 'basic' },
             ],
           },
         ],
       },
       {
-        type: 'banner',
-        content: { type: 'markdown', content: 'Hello' },
-        async dynamic(ctx: Context, args) {
-          const token = await getToken(ctx, args.requestId);
+        type: 'accordion',
+        label: 'Token State',
+        inputs: [],
+        async dynamic(ctx, { requestId }) {
+          const token = await getToken(ctx, requestId);
           if (token == null) {
             return { hidden: true };
           }
-          return ({
-            content: {
-              type: 'markdown',
-              content: token ? 'token: `' + token.response.access_token + '`' : 'No token',
-            },
-          });
+          return {
+            inputs: [
+              {
+                type: 'markdown',
+                content: 'token: `' + token.response.access_token + '`',
+              },
+            ],
+          };
         },
       },
     ],
