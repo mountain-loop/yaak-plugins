@@ -1,4 +1,4 @@
-import { Context } from '../../../../yaak/packages/plugin-runtime-types';
+import { Context } from '@yaakapp/api';
 
 export async function storeToken(ctx: Context, contextId: string, response: AccessTokenRawResponse) {
   if (!response.access_token) {
