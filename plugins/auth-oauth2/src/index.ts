@@ -8,8 +8,8 @@ import {
 import { DEFAULT_PKCE_METHOD, getAuthorizationCode, PKCE_PLAIN, PKCE_SHA256 } from './grants/authorizationCode';
 import { getClientCredentials } from './grants/clientCredentials';
 import { getImplicit } from './grants/implicit';
-import { getResourceOwner } from './grants/resourceOwner';
-import { AccessToken, getToken } from './store';
+import { getPassword } from './grants/password';
+import { AccessToken, deleteToken, getToken } from './store';
 
 type GrantType = 'authorization_code' | 'implicit' | 'password' | 'client_credentials';
 
@@ -68,6 +68,34 @@ export const plugin: PluginDefinition = {
     name: 'oauth2',
     label: 'OAuth 2.0',
     shortLabel: 'OAuth 2',
+    actions: [
+      {
+        label: 'Copy Current Token',
+        name: 'copyCurrentToken',
+        icon: 'copy',
+        async onSelect(ctx, { contextId }) {
+          const token = await getToken(ctx, contextId);
+          if (token == null) {
+            await ctx.toast.show({ message: 'No token to copy', color: 'warning' });
+          } else {
+            await ctx.clipboard.copyText(token.response.access_token);
+            await ctx.toast.show({ message: 'Token copied to clipboard', icon: 'copy', color: 'success' });
+          }
+        },
+      },
+      {
+        label: 'Delete Token',
+        name: 'clearToken',
+        icon: 'trash',
+        async onSelect(ctx, { contextId }) {
+          if (await deleteToken(ctx, contextId)) {
+            await ctx.toast.show({ message: 'Token deleted', color: 'success' });
+          } else {
+            await ctx.toast.show({ message: 'No token to delete', color: 'warning' });
+          }
+        },
+      },
+    ],
     args: [
       {
         type: 'select',
@@ -182,36 +210,38 @@ export const plugin: PluginDefinition = {
       },
       {
         type: 'accordion',
-        label: 'Token State',
-        inputs: [],
-        async dynamic(ctx, { requestId }) {
-          const token = await getToken(ctx, requestId);
+        label: 'Access Token Response',
+        async dynamic(ctx, { contextId }) {
+          const token = await getToken(ctx, contextId);
           if (token == null) {
             return { hidden: true };
           }
           return {
+            label: 'Access Token Response',
             inputs: [
               {
-                type: 'markdown',
-                content: 'token: `' + token.response.access_token + '`',
+                type: 'editor',
+                defaultValue: JSON.stringify(token.response, null, 2),
+                hideLabel: true,
+                readOnly: true,
+                language: 'json',
               },
             ],
           };
         },
       },
     ],
-    async onApply(ctx, { values, requestId }) {
+    async onApply(ctx, { values, contextId }) {
       const headerPrefix = optionalString(values, 'headerPrefix') ?? '';
       const grantType = requiredString(values, 'grantType') as GrantType;
       const credentialsInBody = values.credentials === 'body';
 
-      let token: AccessToken;
-
       console.log('Performing OAuth', values);
+      let token: AccessToken;
       if (grantType === 'authorization_code') {
         const authorizationUrl = requiredString(values, 'authorizationUrl');
         const accessTokenUrl = requiredString(values, 'accessTokenUrl');
-        token = await getAuthorizationCode(ctx, requestId, {
+        token = await getAuthorizationCode(ctx, contextId, {
           accessTokenUrl: accessTokenUrl.match(/^https?:\/\//) ? accessTokenUrl : `https://${accessTokenUrl}`,
           authorizationUrl: authorizationUrl.match(/^https?:\/\//) ? authorizationUrl : `https://${authorizationUrl}`,
           clientId: requiredString(values, 'clientId'),
@@ -227,7 +257,7 @@ export const plugin: PluginDefinition = {
         });
       } else if (grantType === 'implicit') {
         const authorizationUrl = requiredString(values, 'authorizationUrl');
-        token = await getImplicit(ctx, requestId, {
+        token = await getImplicit(ctx, contextId, {
           authorizationUrl: authorizationUrl.match(/^https?:\/\//) ? authorizationUrl : `https://${authorizationUrl}`,
           clientId: requiredString(values, 'clientId'),
           redirectUri: optionalString(values, 'redirectUri'),
@@ -237,7 +267,7 @@ export const plugin: PluginDefinition = {
         });
       } else if (grantType === 'client_credentials') {
         const accessTokenUrl = requiredString(values, 'accessTokenUrl');
-        token = await getClientCredentials(ctx, requestId, {
+        token = await getClientCredentials(ctx, contextId, {
           accessTokenUrl: accessTokenUrl.match(/^https?:\/\//) ? accessTokenUrl : `https://${accessTokenUrl}`,
           clientId: requiredString(values, 'clientId'),
           clientSecret: requiredString(values, 'clientSecret'),
@@ -246,7 +276,7 @@ export const plugin: PluginDefinition = {
         });
       } else if (grantType === 'password') {
         const accessTokenUrl = requiredString(values, 'accessTokenUrl');
-        token = await getResourceOwner(ctx, requestId, {
+        token = await getPassword(ctx, contextId, {
           accessTokenUrl: accessTokenUrl.match(/^https?:\/\//) ? accessTokenUrl : `https://${accessTokenUrl}`,
           clientId: requiredString(values, 'clientId'),
           clientSecret: requiredString(values, 'clientSecret'),

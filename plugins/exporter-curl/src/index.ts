@@ -11,7 +11,7 @@ export const plugin: PluginDefinition = {
       const rendered_request = await ctx.httpRequest.render({ httpRequest: args.httpRequest, purpose: 'preview' });
       const data = await convertToCurl(rendered_request);
       await ctx.clipboard.copyText(data);
-      await ctx.toast.show({ message: 'Curl copied to clipboard', icon: 'copy' });
+      await ctx.toast.show({ message: 'Curl copied to clipboard', icon: 'copy', color: 'success' });
     },
   }],
 };

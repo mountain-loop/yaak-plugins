@@ -3,7 +3,7 @@ import { AccessToken, AccessTokenRawResponse, getToken, storeToken } from '../st
 
 export function getImplicit(
   ctx: Context,
-  requestId: string,
+  contextId: string,
   {
     authorizationUrl: authorizationUrlRaw,
     responseType,
@@ -21,7 +21,7 @@ export function getImplicit(
   },
 ) :Promise<AccessToken> {
   return new Promise(async (resolve, reject) => {
-    const token = await getToken(ctx, requestId);
+    const token = await getToken(ctx, contextId);
     if (token) {
       // resolve(token.response.access_token);
       // TODO: Refresh token if expired
@@ -60,7 +60,7 @@ export function getImplicit(
         }
         const response = Object.fromEntries(params) as unknown as AccessTokenRawResponse;
         try {
-          resolve(await storeToken(ctx, requestId, response));
+          resolve(await storeToken(ctx, contextId, response));
         } catch (err) {
           reject(err);
         }

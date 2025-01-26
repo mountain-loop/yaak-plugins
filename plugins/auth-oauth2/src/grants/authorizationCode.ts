@@ -1,15 +1,16 @@
 import { Context } from '@yaakapp/api';
 import { createHash, randomBytes } from 'node:crypto';
 import { getAccessToken } from '../getAccessToken';
-import { AccessToken, getToken, storeToken } from '../store';
+import { getOrRefreshAccessToken } from '../getOrRefreshAccessToken';
+import { AccessToken, storeToken } from '../store';
 
 export const PKCE_SHA256 = 'S256';
 export const PKCE_PLAIN = 'plain';
 export const DEFAULT_PKCE_METHOD = PKCE_SHA256;
 
-export function getAuthorizationCode(
+export async function getAuthorizationCode(
   ctx: Context,
-  requestId: string,
+  contextId: string,
   {
     authorizationUrl: authorizationUrlRaw,
     accessTokenUrl,
@@ -35,27 +36,31 @@ export function getAuthorizationCode(
     } | null;
   },
 ): Promise<AccessToken> {
+  const token = await getOrRefreshAccessToken(ctx, contextId, {
+    accessTokenUrl,
+    scope,
+    clientId,
+    clientSecret,
+    credentialsInBody,
+  });
+  if (token != null) {
+    return token;
+  }
+
+  const authorizationUrl = new URL(`${authorizationUrlRaw ?? ''}`);
+  authorizationUrl.searchParams.set('response_type', 'code');
+  authorizationUrl.searchParams.set('client_id', clientId);
+  if (redirectUri) authorizationUrl.searchParams.set('redirect_uri', redirectUri);
+  if (scope) authorizationUrl.searchParams.set('scope', scope);
+  if (state) authorizationUrl.searchParams.set('state', state);
+  if (pkce) {
+    const verifier = pkce.codeVerifier || createPkceCodeVerifier();
+    const challengeMethod = pkce.challengeMethod || DEFAULT_PKCE_METHOD;
+    authorizationUrl.searchParams.set('code_challenge', createPkceCodeChallenge(verifier, challengeMethod));
+    authorizationUrl.searchParams.set('code_challenge_method', challengeMethod);
+  }
+
   return new Promise(async (resolve, reject) => {
-    const token = await getToken(ctx, requestId);
-    if (token) {
-      // resolve(token.response.access_token);
-      // TODO: Refresh token if expired
-      // return;
-    }
-
-    const authorizationUrl = new URL(`${authorizationUrlRaw ?? ''}`);
-    authorizationUrl.searchParams.set('response_type', 'code');
-    authorizationUrl.searchParams.set('client_id', clientId);
-    if (redirectUri) authorizationUrl.searchParams.set('redirect_uri', redirectUri);
-    if (scope) authorizationUrl.searchParams.set('scope', scope);
-    if (state) authorizationUrl.searchParams.set('state', state);
-    if (pkce) {
-      const verifier = pkce.codeVerifier || createPkceCodeVerifier();
-      const challengeMethod = pkce.challengeMethod || DEFAULT_PKCE_METHOD;
-      authorizationUrl.searchParams.set('code_challenge', createPkceCodeChallenge(verifier, challengeMethod));
-      authorizationUrl.searchParams.set('code_challenge_method', challengeMethod);
-    }
-
     const authorizationUrlStr = authorizationUrl.toString();
     console.log('Authorizing', authorizationUrlStr);
     let { close } = await ctx.window.openUrl({
@@ -88,7 +93,7 @@ export function getAuthorizationCode(
         });
 
         try {
-          resolve(await storeToken(ctx, requestId, response));
+          resolve(await storeToken(ctx, contextId, response));
         } catch (err) {
           reject(err);
         }

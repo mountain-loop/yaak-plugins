@@ -48,15 +48,13 @@ export async function getAccessToken(
     httpRequest.headers!.push({ name: 'Authorization', value });
   }
 
-  console.log('SENDING REQUEST', JSON.stringify(httpRequest, null, 2));
-
   const resp = await ctx.httpRequest.send({ httpRequest });
-
-  const body = readFileSync(resp.bodyPath ?? '', 'utf8');
 
   if (resp.status < 200 || resp.status >= 300) {
     throw new Error('Failed to fetch access token with status=' + resp.status);
   }
+
+  const body = readFileSync(resp.bodyPath ?? '', 'utf8');
 
   let response;
   try {
@@ -69,6 +67,5 @@ export async function getAccessToken(
     throw new Error('Failed to fetch access token with ' + response.error);
   }
 
-  console.log("ACCESS TOKEN RESPONSE", response);
   return response;
 }

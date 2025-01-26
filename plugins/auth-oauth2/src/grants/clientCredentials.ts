@@ -4,7 +4,7 @@ import { getToken, storeToken } from '../store';
 
 export async function getClientCredentials(
   ctx: Context,
-  requestId: string,
+  contextId: string,
   {
     accessTokenUrl,
     clientId,
@@ -19,7 +19,7 @@ export async function getClientCredentials(
     credentialsInBody: boolean;
   },
 ) {
-  const token = await getToken(ctx, requestId);
+  const token = await getToken(ctx, contextId);
   if (token) {
     // resolve(token.response.access_token);
     // TODO: Refresh token if expired
@@ -36,5 +36,5 @@ export async function getClientCredentials(
     params: [],
   });
 
-  return storeToken(ctx, requestId, response);
+  return storeToken(ctx, contextId, response);
 }

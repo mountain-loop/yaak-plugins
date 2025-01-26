@@ -1,10 +1,11 @@
 import { Context } from '@yaakapp/api';
 import { getAccessToken } from '../getAccessToken';
-import { AccessToken, getToken, storeToken } from '../store';
+import { getOrRefreshAccessToken } from '../getOrRefreshAccessToken';
+import { AccessToken, storeToken } from '../store';
 
-export async function getResourceOwner(
+export async function getPassword(
   ctx: Context,
-  requestId: string,
+  contextId: string,
   {
     accessTokenUrl,
     clientId,
@@ -23,11 +24,15 @@ export async function getResourceOwner(
     credentialsInBody: boolean;
   },
 ): Promise<AccessToken> {
-  const token = await getToken(ctx, requestId);
-  if (token) {
-    // resolve(token.response.access_token);
-    // TODO: Refresh token if expired
-    // return;
+  const token = await getOrRefreshAccessToken(ctx, contextId, {
+    accessTokenUrl,
+    scope,
+    clientId,
+    clientSecret,
+    credentialsInBody,
+  });
+  if (token != null) {
+    return token;
   }
 
   const response = await getAccessToken(ctx, {
@@ -43,5 +48,5 @@ export async function getResourceOwner(
     ],
   });
 
-  return storeToken(ctx, requestId, response);
+  return storeToken(ctx, contextId, response);
 }

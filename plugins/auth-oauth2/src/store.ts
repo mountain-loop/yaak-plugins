@@ -1,6 +1,6 @@
 import { Context } from '../../../../yaak/packages/plugin-runtime-types';
 
-export async function storeToken(ctx: Context, requestId: string, response: AccessTokenRawResponse) {
+export async function storeToken(ctx: Context, contextId: string, response: AccessTokenRawResponse) {
   if (!response.access_token) {
     throw new Error(`Token not found in response`);
   }
@@ -10,16 +10,20 @@ export async function storeToken(ctx: Context, requestId: string, response: Acce
     response,
     expiresAt,
   };
-  await ctx.store.set<AccessToken>(tokenStoreKey(requestId), token);
+  await ctx.store.set<AccessToken>(tokenStoreKey(contextId), token);
   return token;
 }
 
-export async function getToken(ctx: Context, requestId: string) {
-  return ctx.store.get<AccessToken>(tokenStoreKey(requestId));
+export async function getToken(ctx: Context, contextId: string) {
+  return ctx.store.get<AccessToken>(tokenStoreKey(contextId));
 }
 
-function tokenStoreKey(requestId: string) {
-  return ['token', requestId].join('_');
+export async function deleteToken(ctx: Context, contextId: string) {
+  return ctx.store.delete(tokenStoreKey(contextId));
+}
+
+function tokenStoreKey(context_id: string) {
+  return ['token', context_id].join('::');
 }
 
 export interface AccessToken {
@@ -32,5 +36,7 @@ export interface AccessTokenRawResponse {
   token_type?: string;
   expires_in?: number;
   refresh_token?: string;
+  error?: string;
+  error_description?: string;
   scope?: string;
 }
