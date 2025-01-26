@@ -4,7 +4,6 @@ const NEWLINE = '\\\n ';
 
 export const plugin: PluginDefinition = {
   httpRequestActions: [{
-    name: 'export-curl',
     label: 'Copy as Curl',
     icon: 'copy',
     async onSelect(ctx, args) {
