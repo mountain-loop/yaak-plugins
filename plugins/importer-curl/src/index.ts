@@ -386,22 +386,24 @@ function pairsToDataParameters(keyedPairs: FlagsByName): DataParameter[] {
 
     for (const p of pairs) {
       if (typeof p !== 'string') continue;
-
-      const [name, value] = p.split('=');
-      if (p.startsWith('@')) {
-        // Yaak doesn't support files in url-encoded data, so
-        dataParameters.push({
-          name: name ?? '',
-          value: '',
-          filePath: p.slice(1),
-          enabled: true,
-        });
-      } else {
-        dataParameters.push({
-          name: name ?? '',
-          value: flagName === 'data-urlencode' ? encodeURIComponent(value ?? '') : value ?? '',
-          enabled: true,
-        });
+      let params = p.split("&");
+      for (const param of params) {
+        const [name, value] = param.split('=');
+        if (param.startsWith('@')) {
+          // Yaak doesn't support files in url-encoded data, so
+          dataParameters.push({
+            name: name ?? '',
+            value: '',
+            filePath: param.slice(1),
+            enabled: true,
+          });
+        } else {
+          dataParameters.push({
+            name: name ?? '',
+            value: flagName === 'data-urlencode' ? encodeURIComponent(value ?? '') : value ?? '',
+            enabled: true,
+          });
+        }
       }
     }
   }
