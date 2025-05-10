@@ -3,6 +3,8 @@
     "environments": [
       {
         "createdAt": "2025-01-13T15:15:43.767",
+        "updatedAt": "2025-01-13T15:15:55.209",
+        "sortPriority": 1736781343767,
         "base": true,
         "id": "GENERATE_ID::env_16c0dec5b77c414ae0e419b8f10c3701300c5900",
         "model": "environment",
@@ -18,6 +20,8 @@
       },
       {
         "createdAt": "2025-01-13T15:15:58.515",
+        "updatedAt": "2025-01-13T15:16:34.705",
+        "sortPriority": 1736781358515,
         "base": false,
         "id": "GENERATE_ID::env_799ae3d723ef44af91b4817e5d057e6d",
         "model": "environment",
@@ -33,6 +37,8 @@
       },
       {
         "createdAt": "2025-01-13T15:16:14.707",
+        "updatedAt": "2025-01-13T15:16:31.078",
+        "sortPriority": 1736781358565,
         "base": false,
         "id": "GENERATE_ID::env_030fbfdbb274426ebd78e2e6518f8553",
         "model": "environment",
@@ -50,6 +56,7 @@
     "folders": [
       {
         "createdAt": "2025-01-13T15:16:44.718",
+        "updatedAt": "2025-01-13T15:16:44.718",
         "folderId": null,
         "id": "GENERATE_ID::fld_859d1df78261463480b6a3a1419517e3",
         "model": "folder",
@@ -77,6 +84,8 @@
         },
         "bodyType": "multipart/form-data",
         "createdAt": "2025-01-13T15:16:46.672",
+        "sortPriority": -1736781406672,
+        "updatedAt": "2025-01-13T15:17:53.176",
         "description": "My description of the request",
         "folderId": "GENERATE_ID::fld_859d1df78261463480b6a3a1419517e3",
         "headers": [
@@ -100,7 +109,6 @@
         "method": "GET",
         "model": "http_request",
         "name": "New Request",
-        "sortPriority": 0,
         "url": "${[BASE_URL ]}/foo/:id",
         "workspaceId": "GENERATE_ID::wrk_d4d92f7c0ee947b89159243506687019"
       }

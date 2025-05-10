@@ -87,7 +87,7 @@ collection:
     meta:
       id: ws-req_5d1a4c7c79494743962e5176f6add270
       created: 1746799553909
-      modified: 1746799564900
+      modified: 1746887120958
       sortKey: -1746799553909
     settings:
       encodeUrl: true
@@ -95,6 +95,12 @@ collection:
       cookies:
         send: true
         store: true
+    authentication:
+      type: basic
+      useISO88591: false
+      disabled: false
+      username: user
+      password: password
     headers:
       - name: User-Agent
         value: insomnia/11.1.0
