@@ -16,7 +16,8 @@
     "jsonpath": "^1.1.1",
     "typescript": "^5.6.2",
     "vitest": "^2.0.4",
-    "workspaces-run": "^1.0.2"
+    "workspaces-run": "^1.0.2",
+    "@yaakapp/cli": "^0.1.5"
   },
   "dependencies": {
     "@yaakapp/api": "^0.6.0"
